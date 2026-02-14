@@ -34,17 +34,20 @@ Optional (ROS2 support):
 
 Usage examples:
 
-  # OpenCV camera (manual save)
-  python3 camera_calib.py --source cam --cols 9 --rows 6 --square 0.024 --manual
+  # OpenCV camera (manual save - default)
+  python3 camera_calib.py --source cam --cols 9 --rows 6 --square 0.024
 
-  # ROS2 topic
-  python3 camera_calib.py --source ros --topic /image_raw --cols 9 --rows 6 --square 0.024 --manual
+  # ROS2 topic (manual save)
+  python3 camera_calib.py --source ros --topic /image_raw --cols 9 --rows 6 --square 0.024
+
+  # OpenCV camera (auto-save mode)
+  python3 camera_calib.py --source cam --cols 9 --rows 6 --square 0.024 --auto
 
   # From images
   python3 camera_calib.py --source images --pattern "calib_images/<date>/*.jpg" --cols 9 --rows 6 --square 0.024
 
 Controls:
-  c → save frame (manual mode)
+  c → save frame (default manual mode)
   q → stop capture and calibrate
 
 Recommended: RMSE < 0.5 px
@@ -202,14 +205,14 @@ def process_frame_for_capture(frame, chessboard_size, criteria, args, saver: Sav
     now = time.time()
 
     # Auto-save
-    if (not args.manual) and found and (now - saver.last_save_t) >= args.cooldown:
+    if args.auto and found and (now - saver.last_save_t) >= args.cooldown:
         saved = saver.try_save(frame)
         if saved:
             saver.last_save_t = now
             print("Saved:", saved)
 
     status = f"Saved: {saver.saved_count} | Chessboard: {'OK' if found else 'NO'} | q=quit+calib"
-    if args.manual:
+    if not args.auto:
         status += " | c=save"
     cv2.putText(vis, status, (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
@@ -218,7 +221,7 @@ def process_frame_for_capture(frame, chessboard_size, criteria, args, saver: Sav
     key = cv2.waitKey(1) & 0xFF
 
     # Manual save
-    if args.manual and key == ord('c'):
+    if (not args.auto) and key == ord('c'):
         if not found:
             print("Not saved: chessboard not detected.")
         else:
@@ -231,7 +234,7 @@ def process_frame_for_capture(frame, chessboard_size, criteria, args, saver: Sav
         return True  # quit
 
     # Optional auto-stop
-    if args.min_samples > 0 and saver.saved_count >= args.min_samples and (not args.manual):
+    if args.min_samples > 0 and saver.saved_count >= args.min_samples and args.auto:
         print("Reached min_samples. Stopping capture and calibrating...")
         return True
 
@@ -259,8 +262,8 @@ def run_camera(args, chessboard_size):
 
     print("Source: cam")
     print("Saving into:", session_dir)
-    print("Manual capture: press 'c' to save (only if chessboard detected)." if args.manual
-          else f"Auto capture: save when chessboard detected (cooldown={args.cooldown:.2f}s)")
+    print(f"Auto capture: save when chessboard detected (cooldown={args.cooldown:.2f}s)" if args.auto
+          else "Manual capture: press 'c' to save (only if chessboard detected).")
     print("Press 'q' to stop and calibrate.\n")
 
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-6)
@@ -332,10 +335,10 @@ def run_ros(args, chessboard_size):
             self.get_logger().info(f"Source: ros")
             self.get_logger().info(f"Subscribed to: {args.topic}")
             self.get_logger().info(f"Saving into: {self.session_dir}")
-            if args.manual:
-                self.get_logger().info("Manual capture: press 'c' to save (only if chessboard detected).")
-            else:
+            if args.auto:
                 self.get_logger().info(f"Auto capture: save when chessboard detected (cooldown={args.cooldown:.2f}s)")
+            else:
+                self.get_logger().info("Manual capture: press 'c' to save (only if chessboard detected).")
             self.get_logger().info("Press 'q' to stop and calibrate.")
 
         def cb(self, msg: Image):
@@ -389,7 +392,7 @@ def main():
     ap.add_argument("--square", type=float, default=0.024, help="square size in meters")
 
     # Capture behavior
-    ap.add_argument("--manual", action="store_true", help="manual save with 'c' (else auto-save)")
+    ap.add_argument("--auto", action="store_true", help="auto-save when chessboard detected (else manual save with 'c')")
     ap.add_argument("--cooldown", type=float, default=0.8, help="auto-save cooldown seconds")
     ap.add_argument("--min_samples", type=int, default=0, help="auto-stop after N saves in auto mode")
 

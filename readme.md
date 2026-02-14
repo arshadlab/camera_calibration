@@ -9,6 +9,9 @@ This project provides a complete workflow for:
    - ROS2 image topics
    - Image files (calibration only)
 
+
+<img width="2018" height="581" alt="image" src="https://github.com/user-attachments/assets/f5800bbd-aa7a-414b-b6ee-0808d041b620" />
+
 ---
 
 # 1. Requirements
@@ -112,14 +115,13 @@ Supports 3 sources:
 
 ## 3.1 Calibration Using OpenCV Camera
 
-Manual save (recommended):
+Manual save (default):
 
 ```bash
 python3 camera_calib.py \
   --source cam \
   --cols 9 --rows 6 \
-  --square 0.024 \
-  --manual
+  --square 0.024
 ```
 
 Controls:
@@ -131,16 +133,33 @@ Controls:
 
 ---
 
+Auto-save mode (optional):
+
+```bash
+python3 camera_calib.py \
+  --source cam \
+  --cols 9 --rows 6 \
+  --square 0.024 \
+  --auto
+```
+
+In auto mode, images are saved automatically when chessboard is detected (with cooldown).
+
+---
+
 ## 3.2 Calibration Using ROS2 Topic
+
+Manual save (default):
 
 ```bash
 python3 camera_calib.py \
   --source ros \
   --topic /image_raw \
   --cols 9 --rows 6 \
-  --square 0.024 \
-  --manual
+  --square 0.024
 ```
+
+Add `--auto` for automatic image capture.
 
 If ROS2 is not installed:
 - Script automatically falls back to camera mode
@@ -159,6 +178,7 @@ python3 camera_calib.py \
 ```
 
 ---
+
 
 # 4. Calibration Quality Guidelines
 
@@ -183,6 +203,50 @@ For stable ArUco pose:
 ```
 RMSE < 0.5 pixels recommended
 ```
+
+## Example of Poor Calibration Frame (Excessive Tilt / Bad Corner Detection)
+
+Not all detected chessboard images are suitable for calibration.
+
+If the board is:
+
+- Too heavily tilted
+- Partially occluded
+- Blurry
+- Poorly lit
+- Or corners are incorrectly connected
+
+then the detected corner points may not align correctly with the actual chessboard grid.
+
+Symptoms:
+
+- Lines between points look skewed or crossing incorrectly
+- Some corners appear shifted away from true intersection
+- Board edges appear warped or inconsistent
+- RMSE increases significantly after calibration
+
+Even if OpenCV reports "Chessboard: OK", the image may still degrade calibration quality.
+
+Why this happens:
+
+When the board is tilted excessively, especially near image borders:
+- Perspective distortion becomes extreme
+- Corner localization becomes less accurate
+- Lens distortion model fitting becomes unstable
+
+Best practice:
+
+- Avoid extreme tilt angles
+- Keep full board visible
+- Maintain good lighting
+- Avoid motion blur
+- Ensure corners visually align with square intersections
+
+If corner overlays do not visually sit exactly on chessboard intersections,
+discard the frame and do not use it for calibration.
+
+High-quality calibration depends more on accurate corners than on extreme viewpoints.
+<img width="673" height="594" alt="image" src="https://github.com/user-attachments/assets/efdfd40c-e706-4d3c-a051-a69542cad8de" />
 
 Tips:
 - Capture 20–40 diverse poses
@@ -308,6 +372,8 @@ CamPos[m]: x=... y=... z=...
 
 This is camera position in marker frame.
 
+<img width="696" height="627" alt="image" src="https://github.com/user-attachments/assets/5f09a883-8f2f-4b74-af3c-3ac9da63317b" />
+
 ---
 
 # 8. Publishing Camera to ROS2 (Quick Test)
@@ -366,8 +432,10 @@ Select `/image_raw`.
 ## 8.4 Use With Calibration Script
 
 ```bash
-python3 camera_calib.py --source ros --topic /image_raw --manual
+python3 camera_calib.py --source ros --topic /image_raw
 ```
+
+Add `--auto` for automatic image capture when chessboard is detected.
 
 ---
 
